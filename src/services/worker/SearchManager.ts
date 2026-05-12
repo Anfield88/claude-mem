@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { getProjectContext } from '../../utils/project-name.js';
 import { formatDate, formatTime, formatDateTime, extractFirstFile, groupByDate, estimateTokens } from '../../shared/timeline-formatting.js';
 import { ModeManager } from '../domain/ModeManager.js';
+import { normalizePlatformSource } from '../../shared/platform-source.js';
 
 import {
   SearchOrchestrator,
@@ -134,6 +135,18 @@ export class SearchManager {
       normalized.isFolder = false;
     }
 
+    // Accept `source` as a friendly alias for `platformSource`, then canonicalize
+    // (e.g. 'claude-code' -> 'claude', 'CODEX' -> 'codex'). Only normalize when a
+    // value was actually supplied — an absent filter must stay absent, not default
+    // to 'claude'.
+    if (normalized.source && !normalized.platformSource) {
+      normalized.platformSource = normalized.source;
+    }
+    delete normalized.source;
+    if (normalized.platformSource) {
+      normalized.platformSource = normalizePlatformSource(normalized.platformSource);
+    }
+
     return normalized;
   }
 
@@ -244,10 +257,10 @@ export class SearchManager {
             observations = this.sessionStore.getObservationsByIds(obsIds, obsOptions);
           }
           if (sessionIds.length > 0) {
-            sessions = this.sessionStore.getSessionSummariesByIds(sessionIds, { orderBy: 'date_desc', limit: options.limit, project: options.project });
+            sessions = this.sessionStore.getSessionSummariesByIds(sessionIds, { orderBy: 'date_desc', limit: options.limit, project: options.project, platformSource: options.platformSource });
           }
           if (promptIds.length > 0) {
-            prompts = this.sessionStore.getUserPromptsByIds(promptIds, { orderBy: 'date_desc', limit: options.limit, project: options.project });
+            prompts = this.sessionStore.getUserPromptsByIds(promptIds, { orderBy: 'date_desc', limit: options.limit, project: options.project, platformSource: options.platformSource });
           }
         } else {
           logger.debug('SEARCH', 'ChromaDB found no matches (final result, no FTS5 fallback)', {});
@@ -918,7 +931,7 @@ export class SearchManager {
 
           if (recentIds.length > 0) {
             const limit = options.limit || 20;
-            results = this.sessionStore.getObservationsByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project });
+            results = this.sessionStore.getObservationsByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project, platformSource: options.platformSource });
             logger.debug('SEARCH', 'Hydrated observations from SQLite', { count: results.length });
           }
         }
@@ -993,7 +1006,7 @@ export class SearchManager {
 
           if (recentIds.length > 0) {
             const limit = options.limit || 20;
-            results = this.sessionStore.getSessionSummariesByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project });
+            results = this.sessionStore.getSessionSummariesByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project, platformSource: options.platformSource });
             logger.debug('SEARCH', 'Hydrated sessions from SQLite', { count: results.length });
           }
         }
@@ -1068,7 +1081,7 @@ export class SearchManager {
 
           if (recentIds.length > 0) {
             const limit = options.limit || 20;
-            results = this.sessionStore.getUserPromptsByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project });
+            results = this.sessionStore.getUserPromptsByIds(recentIds, { orderBy: 'date_desc', limit, project: options.project, platformSource: options.platformSource });
             logger.debug('SEARCH', 'Hydrated user prompts from SQLite', { count: results.length });
           }
         }

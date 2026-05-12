@@ -441,8 +441,9 @@ NEVER fetch full details without filtering first. 10x token savings.`,
 **3-Layer Pattern (ALWAYS follow this):**
 
 1. **Search** - Get index of results with IDs
-   \`search(query="...", limit=20, project="...")\`
+   \`search(query="...", limit=20, project="...", source="...")\`
    Returns: Table with IDs, titles, dates (~50-100 tokens/result)
+   \`source\` (optional) scopes to one agent: 'claude', 'codex', 'cursor', 'gemini-cli', …
 
 2. **Timeline** - Get context around interesting results
    \`timeline(anchor=<ID>, depth_before=3, depth_after=3)\`
@@ -458,7 +459,7 @@ NEVER fetch full details without filtering first. 10x token savings.`,
   },
   {
     name: 'search',
-    description: 'Step 1: Search memory. Returns index with IDs. Params: query, limit, project, type, obs_type, dateStart, dateEnd, offset, orderBy',
+    description: 'Step 1: Search memory. Returns index with IDs. Params: query, limit, project, type, obs_type, dateStart, dateEnd, offset, orderBy, source',
     inputSchema: {
       type: 'object',
       properties: {
@@ -470,7 +471,8 @@ NEVER fetch full details without filtering first. 10x token savings.`,
         dateStart: { type: 'string', description: 'Start date filter (ISO)' },
         dateEnd: { type: 'string', description: 'End date filter (ISO)' },
         offset: { type: 'number', description: 'Pagination offset' },
-        orderBy: { type: 'string', description: 'Sort order: date_desc or date_asc' }
+        orderBy: { type: 'string', description: 'Sort order: date_desc or date_asc' },
+        source: { type: 'string', description: "Restrict results to one platform/agent source — e.g. 'claude' (Claude Code), 'codex' (Codex CLI), 'cursor', 'gemini-cli'. Omit to search all sources." }
       },
       additionalProperties: true
     },

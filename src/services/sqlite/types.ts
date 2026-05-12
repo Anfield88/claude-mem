@@ -240,6 +240,13 @@ export interface SearchFilters {
   concepts?: string | string[];
   files?: string | string[];
   dateRange?: DateRange;
+  /**
+   * Restrict results to a single platform source (e.g. 'claude', 'codex', 'cursor').
+   * Matched against the owning sdk_session's platform_source, treating a missing
+   * value as the default ('claude'). Expected to be pre-normalized by the caller
+   * (see normalizePlatformSource in shared/platform-source).
+   */
+  platformSource?: string;
 }
 
 export interface SearchOptions extends SearchFilters {

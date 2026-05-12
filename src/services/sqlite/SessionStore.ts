@@ -1440,11 +1440,11 @@ export class SessionStore {
 
   getObservationsByIds(
     ids: number[],
-    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string; type?: string | string[]; concepts?: string | string[]; files?: string | string[] } = {}
+    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string; type?: string | string[]; concepts?: string | string[]; files?: string | string[]; platformSource?: string } = {}
   ): ObservationSearchResult[] {
     if (ids.length === 0) return [];
 
-    const { orderBy = 'date_desc', limit, project, type, concepts, files } = options;
+    const { orderBy = 'date_desc', limit, project, type, concepts, files, platformSource } = options;
     const preserveIdOrder = orderBy === 'relevance';
     const orderClause = preserveIdOrder ? '' : `ORDER BY created_at_epoch ${orderBy === 'date_asc' ? 'ASC' : 'DESC'}`;
     const limitClause = limit ? `LIMIT ${limit}` : '';
@@ -1456,6 +1456,13 @@ export class SessionStore {
     if (project) {
       additionalConditions.push('project = ?');
       params.push(project);
+    }
+
+    if (platformSource) {
+      // platform_source lives on sdk_sessions; resolve via the owning session,
+      // treating a missing value as the default source.
+      additionalConditions.push(`COALESCE((SELECT ps.platform_source FROM sdk_sessions ps WHERE ps.memory_session_id = observations.memory_session_id), '${DEFAULT_PLATFORM_SOURCE}') = ?`);
+      params.push(platformSource);
     }
 
     if (type) {
@@ -2098,21 +2105,29 @@ export class SessionStore {
 
   getSessionSummariesByIds(
     ids: number[],
-    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string } = {}
+    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string; platformSource?: string } = {}
   ): SessionSummarySearchResult[] {
     if (ids.length === 0) return [];
 
-    const { orderBy = 'date_desc', limit, project } = options;
+    const { orderBy = 'date_desc', limit, project, platformSource } = options;
     const preserveIdOrder = orderBy === 'relevance';
     const orderClause = preserveIdOrder ? '' : `ORDER BY created_at_epoch ${orderBy === 'date_asc' ? 'ASC' : 'DESC'}`;
     const limitClause = limit ? `LIMIT ${limit}` : '';
     const placeholders = ids.map(() => '?').join(',');
     const params: any[] = [...ids];
 
-    const whereClause = project
-      ? `WHERE id IN (${placeholders}) AND project = ?`
+    const additionalConditions: string[] = [];
+    if (project) {
+      additionalConditions.push('project = ?');
+      params.push(project);
+    }
+    if (platformSource) {
+      additionalConditions.push(`COALESCE((SELECT ps.platform_source FROM sdk_sessions ps WHERE ps.memory_session_id = session_summaries.memory_session_id), '${DEFAULT_PLATFORM_SOURCE}') = ?`);
+      params.push(platformSource);
+    }
+    const whereClause = additionalConditions.length > 0
+      ? `WHERE id IN (${placeholders}) AND ${additionalConditions.join(' AND ')}`
       : `WHERE id IN (${placeholders})`;
-    if (project) params.push(project);
 
     const stmt = this.db.prepare(`
       SELECT * FROM session_summaries
@@ -2130,11 +2145,11 @@ export class SessionStore {
 
   getUserPromptsByIds(
     ids: number[],
-    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string } = {}
+    options: { orderBy?: 'date_desc' | 'date_asc' | 'relevance'; limit?: number; project?: string; platformSource?: string } = {}
   ): UserPromptRecord[] {
     if (ids.length === 0) return [];
 
-    const { orderBy = 'date_desc', limit, project } = options;
+    const { orderBy = 'date_desc', limit, project, platformSource } = options;
     const preserveIdOrder = orderBy === 'relevance';
     const orderClause = preserveIdOrder ? '' : `ORDER BY up.created_at_epoch ${orderBy === 'date_asc' ? 'ASC' : 'DESC'}`;
     const limitClause = limit ? `LIMIT ${limit}` : '';
@@ -2143,6 +2158,8 @@ export class SessionStore {
 
     const projectFilter = project ? 'AND s.project = ?' : '';
     if (project) params.push(project);
+    const platformSourceFilter = platformSource ? `AND COALESCE(s.platform_source, '${DEFAULT_PLATFORM_SOURCE}') = ?` : '';
+    if (platformSource) params.push(platformSource);
 
     const stmt = this.db.prepare(`
       SELECT
@@ -2151,7 +2168,7 @@ export class SessionStore {
         s.memory_session_id
       FROM user_prompts up
       JOIN sdk_sessions s ON up.content_session_id = s.content_session_id
-      WHERE up.id IN (${placeholders}) ${projectFilter}
+      WHERE up.id IN (${placeholders}) ${projectFilter} ${platformSourceFilter}
       ${orderClause}
       ${limitClause}
     `);

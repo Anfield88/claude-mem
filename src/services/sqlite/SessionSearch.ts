@@ -3,6 +3,7 @@ import { TableNameRow } from '../../types/database.js';
 import { DATA_DIR, DB_PATH, ensureDir } from '../../shared/paths.js';
 import { logger } from '../../utils/logger.js';
 import { isDirectChild } from '../../shared/path-utils.js';
+import { DEFAULT_PLATFORM_SOURCE } from '../../shared/platform-source.js';
 import { AppError } from '../server/ErrorHandler.js';
 import {
   ObservationSearchResult,
@@ -158,6 +159,16 @@ export class SessionSearch {
     if (filters.project) {
       conditions.push(`${tableAlias}.project = ?`);
       params.push(filters.project);
+    }
+
+    if (filters.platformSource) {
+      // platform_source is stored on sdk_sessions, not on the observation/summary row.
+      // Resolve it via the owning session; a row whose session has no value
+      // (legacy rows / in-flight sessions) is treated as the default source.
+      conditions.push(
+        `COALESCE((SELECT ps.platform_source FROM sdk_sessions ps WHERE ps.memory_session_id = ${tableAlias}.memory_session_id), '${DEFAULT_PLATFORM_SOURCE}') = ?`
+      );
+      params.push(filters.platformSource);
     }
 
     if (filters.type) {
@@ -512,6 +523,11 @@ export class SessionSearch {
     if (filters.project) {
       baseConditions.push('s.project = ?');
       params.push(filters.project);
+    }
+
+    if (filters.platformSource) {
+      baseConditions.push(`COALESCE(s.platform_source, '${DEFAULT_PLATFORM_SOURCE}') = ?`);
+      params.push(filters.platformSource);
     }
 
     if (filters.dateRange) {
